@@ -54,8 +54,10 @@ type Query {
 declare(strict_types=1);
 namespace Flownative\Example\GraphQL;
 
-use Flownative\Example\GraphQL\QueryResolver;
 use Flownative\GraphQL\EndpointInterface;
+use GraphQL\Executor\ExecutionResult;
+use GraphQL\GraphQL;
+use GraphQL\Type\Schema;
 
 final class Endpoint implements EndpointInterface
 {
@@ -89,9 +91,25 @@ final class Endpoint implements EndpointInterface
     }
 
     /**
+     * @param Schema $schema
+     * @param array $input
+     * @return ExecutionResult
+     */
+    public function executeQuery(Schema $schema, array $input): ExecutionResult
+    {
+        return GraphQL::executeQuery(
+            $schema,
+            $input['query'],
+            $this->getRootValue(),
+            null,
+            $input['variables'] ?? null,
+        );
+    }
+
+    /**
      * @return mixed
      */
-    public function getRootValue(): array
+    private function getRootValue(): array
     {
         $queryResolver = $this->queryResolver;
         return [

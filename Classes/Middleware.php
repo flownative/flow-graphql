@@ -4,7 +4,6 @@ namespace Flownative\GraphQL;
 
 use GraphQL\Error\DebugFlag;
 use GraphQL\Error\SyntaxError;
-use GraphQL\GraphQL;
 use GraphQL\Language\Parser;
 use GraphQL\Type\Schema;
 use GraphQL\Utils\BuildSchema;
@@ -64,11 +63,12 @@ final class Middleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        $endpoint = $this->objectManager->get($endpointClassName);
-
         if ($request->getMethod() === 'OPTIONS') {
             return new Response(200, ['Allow' => 'GET, POST, OPTIONS', 'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS']);
         }
+
+        $endpoint = $this->objectManager->get($endpointClassName);
+        assert($endpoint instanceof EndpointInterface);
 
         try {
             $schema = $this->getSchema($endpoint);
@@ -82,11 +82,8 @@ final class Middleware implements MiddlewareInterface
             return new Response(400, ['Content-Type' => 'application/json'], '{error:"Failed decoding request body"}');
         }
 
-        $result = GraphQL::executeQuery($schema, $input['query'], $endpoint->getRootValue(), null, $input['variables'] ?? null)
-            ->toArray(self::parseDebugOptions($this->settings['debug']));
-
         try {
-            $responseBody = \json_encode($result, JSON_THROW_ON_ERROR);
+            $responseBody = \json_encode($endpoint->executeQuery($schema, $input)->toArray(self::parseDebugOptions($this->settings['debug'])),JSON_THROW_ON_ERROR);
         } catch (\Exception $e) {
             return new Response(500, ['Content-Type' => 'application/json'], '{error:"Failed encoding response body"}');
         }

@@ -2,6 +2,9 @@
 declare(strict_types=1);
 namespace Flownative\GraphQL;
 
+use GraphQL\Executor\ExecutionResult;
+use GraphQL\Type\Schema;
+
 interface EndpointInterface
 {
     /**
@@ -39,24 +42,9 @@ interface EndpointInterface
     public function getTypeConfigDecorator(): ?callable;
 
     /**
-     * Returns the value provided as the first argument to resolver functions
-     * on the top level type (e.g. the query object type).
-     *
-     * Example:
-     *
-     *   public function getRootValue()
-     *   {
-     *       $queryResolver = $this->queryResolver;
-     *       return [
-     *          'node' => static function ($rootValue, array $args, $context) use ($queryResolver) {
-     *              return $queryResolver->node($rootValue, $args);
-     *          },
-     *          'customerAccounts' => static function ($rootValue, array $args, $context) use ($queryResolver) {
-     *             return $queryResolver->customerAccounts($rootValue, $args);
-     *            },
-     *       ];
-     *   }
-     * @return mixed
+     * @param Schema $schema
+     * @param array $input
+     * @return ExecutionResult
      */
-    public function getRootValue();
+    public function executeQuery(Schema $schema, array $input): ExecutionResult;
 }
