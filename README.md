@@ -15,9 +15,102 @@ library.
 
 tbd.
 
-## Example Usage
+## Example
 
-tbd.
+Here's a minimal Hello-World-example:
+
+`Classes/GraphQL/QueryResolver.php`:
+```php
+<?php
+declare(strict_types=1);
+namespace Flownative\Example\GraphQL;
+
+final class QueryResolver
+{
+    /**
+     * @param $_
+     * @param array $arguments
+     * @return array
+     */
+    public function ping($_, array $arguments): array
+    {
+        return [
+            'pong' => time()
+        ];
+    }
+}
+```
+
+`Resources/Private/GraphQL/schema.graphql`:
+```graphql
+type Query {
+    ping: String
+}
+```
+
+`Classes/GraphQL/Endpoint.php`:
+```php
+<?php
+declare(strict_types=1);
+namespace Flownative\Example\GraphQL;
+
+use Flownative\Example\GraphQL\QueryResolver;
+use Flownative\GraphQL\EndpointInterface;
+
+final class Endpoint implements EndpointInterface
+{
+    /**
+     * @var QueryResolver
+     */
+    protected $queryResolver;
+
+    /**
+     * @param QueryResolver $queryResolver
+     */
+    public function __construct(QueryResolver $queryResolver)
+    {
+        $this->queryResolver = $queryResolver;
+    }
+
+    /**
+     * @return string
+     */
+    public static function getPath(): string
+    {
+        return '/api/graphql';
+    }
+
+    /**
+     * @return string
+     */
+    public function getSchemaUri(): string
+    {
+        return 'resource://Flownative.Example/Private/GraphQL/schema.graphql';
+    }
+
+    /**
+     * @return mixed
+     */
+    public function getRootValue(): array
+    {
+        $queryResolver = $this->queryResolver;
+        return [
+            'ping' => static function ($rootValue, array $args, $context) use ($queryResolver) {
+                return $queryResolver->ping($rootValue, $args);
+            }
+        ];
+    }
+
+    /**
+     * @return callable|null
+     */
+    public function getTypeConfigDecorator(): ?callable
+    {
+        return null;
+    }
+}
+
+```
 
 ## Credits and Support
 
