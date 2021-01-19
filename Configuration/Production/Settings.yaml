@@ -1,0 +1,5 @@
+Flownative:
+  GraphQL:
+    debug:
+      includeDebugMessage: false
+      includeTrace: false

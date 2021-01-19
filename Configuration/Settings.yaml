@@ -1,0 +1,17 @@
+Neos:
+  Flow:
+    http:
+      middlewares:
+        'Flownative.GraphQL':
+          'position': 'start'
+          middleware: 'Flownative\GraphQL\Middleware'
+
+Flownative:
+  GraphQL:
+    debug:
+      includeDebugMessage: true
+      includeTrace: true
+
+    # Object names of endpoints.
+    # Each endpoint class must implement EndpointInterface.
+    endpoints: []
