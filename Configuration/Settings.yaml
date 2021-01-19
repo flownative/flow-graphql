@@ -11,7 +11,3 @@ Flownative:
     debug:
       includeDebugMessage: true
       includeTrace: true
-
-    # Object names of endpoints.
-    # Each endpoint class must implement EndpointInterface.
-    endpoints: []

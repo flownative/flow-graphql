@@ -11,9 +11,11 @@ use GraphQL\Utils\BuildSchema;
 use GuzzleHttp\Psr7\Response;
 use Neos\Cache\Exception as CacheException;
 use Neos\Cache\Frontend\VariableFrontend;
+use Neos\Flow\Annotations\CompileStatic;
 use Neos\Flow\Annotations\Inject;
 use Neos\Flow\Annotations\InjectConfiguration;
 use Neos\Flow\ObjectManagement\ObjectManagerInterface;
+use Neos\Flow\Reflection\ReflectionService;
 use Neos\Utility\Files;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -51,19 +53,18 @@ final class Middleware implements MiddlewareInterface
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $requestPath = $request->getUri()->getPath();
-        foreach ($this->settings['endpoints'] as $endpointObjectName) {
-            assert(in_array(EndpointInterface::class, class_implements($endpointObjectName), true));
-            if ($requestPath === $endpointObjectName::getPath()) {
+        foreach ($this->getEndpointImplementations($this->objectManager) as $endpointClassName) {
+            if ($requestPath === $endpointClassName::getPath()) {
                 break;
             }
-            unset($endpointObjectName);
+            unset($endpointClassName);
         }
 
-        if (!isset($endpointObjectName) || !in_array($request->getMethod(), ['POST', 'OPTIONS'])) {
+        if (!isset($endpointClassName) || !in_array($request->getMethod(), ['POST', 'OPTIONS'])) {
             return $handler->handle($request);
         }
 
-        $endpoint = $this->objectManager->get($endpointObjectName);
+        $endpoint = $this->objectManager->get($endpointClassName);
 
         if ($request->getMethod() === 'OPTIONS') {
             return new Response(200, ['Allow' => 'GET, POST, OPTIONS', 'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS']);
@@ -128,5 +129,16 @@ final class Middleware implements MiddlewareInterface
         }
 
         return BuildSchema::build($documentNode, $endpoint->getTypeConfigDecorator());
+    }
+
+    /**
+     * @param ObjectManagerInterface $objectManager
+     * @return array
+     * @CompileStatic
+     */
+    private function getEndpointImplementations(ObjectManagerInterface $objectManager): array
+    {
+        $reflectionService = $objectManager->get(ReflectionService::class);
+        return $reflectionService->getAllImplementationClassNamesForInterface(EndpointInterface::class);
     }
 }
