@@ -1,5 +1,6 @@
 Flownative:
   GraphQL:
+    enableSchemaCache: true
     debug:
       includeDebugMessage: false
       includeTrace: false

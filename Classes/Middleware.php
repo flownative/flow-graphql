@@ -116,13 +116,16 @@ final class Middleware implements MiddlewareInterface
     private function getSchema(EndpointInterface $endpoint): Schema
     {
         $schemaPathAndFilename = $endpoint->getSchemaUri();
-        $cacheKey = sha1($schemaPathAndFilename);
-        if ($this->schemaCache->has($cacheKey)) {
-            $documentNode = $this->schemaCache->get($cacheKey);
+        if ($this->settings['enableSchemaCache'] === true) {
+            $cacheKey = sha1($schemaPathAndFilename);
+            if ($this->schemaCache->has($cacheKey)) {
+                $documentNode = $this->schemaCache->get($cacheKey);
+            } else {
+                $documentNode = Parser::parse(Files::getFileContents($schemaPathAndFilename));
+                $this->schemaCache->set($cacheKey, $documentNode);
+            }
         } else {
-            $content = Files::getFileContents($schemaPathAndFilename);
-            $documentNode = Parser::parse($content);
-            $this->schemaCache->set($cacheKey, $documentNode);
+            $documentNode = Parser::parse(Files::getFileContents($schemaPathAndFilename));
         }
 
         return BuildSchema::build($documentNode, $endpoint->getTypeConfigDecorator());

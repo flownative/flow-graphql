@@ -8,6 +8,7 @@ Neos:
 
 Flownative:
   GraphQL:
+    enableSchemaCache: false
     debug:
       includeDebugMessage: true
       includeTrace: true
