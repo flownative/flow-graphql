@@ -2,11 +2,19 @@
 declare(strict_types=1);
 namespace Flownative\GraphQL;
 
-use GraphQL\Executor\ExecutionResult;
-use GraphQL\Type\Schema;
+use GraphQL\Type\Definition\ResolveInfo;
 
 interface EndpointInterface
 {
+    /**
+     * @param $objectValue
+     * @param $args
+     * @param $_
+     * @param ResolveInfo $info
+     * @return mixed
+     */
+    public function __invoke($objectValue, $args, $_, ResolveInfo $info);
+
     /**
      * Returns the path (ie. a part of the GraphQL API URL) which should
      * be handled by this endpoint.
@@ -40,11 +48,4 @@ interface EndpointInterface
      * @see https://webonyx.github.io/graphql-php/type-system/type-language/#defining-resolvers
      */
     public function getTypeConfigDecorator(): ?callable;
-
-    /**
-     * @param Schema $schema
-     * @param array $input
-     * @return ExecutionResult
-     */
-    public function executeQuery(Schema $schema, array $input): ExecutionResult;
 }

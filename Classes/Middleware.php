@@ -5,6 +5,8 @@ namespace Flownative\GraphQL;
 use GraphQL\Error\DebugFlag;
 use GraphQL\Error\SyntaxError;
 use GraphQL\Language\Parser;
+use GraphQL\Server\ServerConfig;
+use GraphQL\Server\StandardServer;
 use GraphQL\Type\Schema;
 use GraphQL\Utils\BuildSchema;
 use GuzzleHttp\Psr7\Response;
@@ -13,13 +15,17 @@ use Neos\Cache\Frontend\VariableFrontend;
 use Neos\Flow\Annotations\CompileStatic;
 use Neos\Flow\Annotations\Inject;
 use Neos\Flow\Annotations\InjectConfiguration;
+use Neos\Flow\Mvc\ActionRequest;
 use Neos\Flow\ObjectManagement\ObjectManagerInterface;
 use Neos\Flow\Reflection\ReflectionService;
+use Neos\Flow\Security\Context as SecurityContext;
+use Neos\Http\Factories\StreamFactory;
 use Neos\Utility\Files;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+
 
 /**
  * An HTTP middleware which handles requests directed to GraphQL endpoints
@@ -45,6 +51,18 @@ final class Middleware implements MiddlewareInterface
     protected $objectManager;
 
     /**
+     * @Inject
+     * @var StreamFactory
+     */
+    protected $streamFactory;
+
+    /**
+     * @Inject(lazy=false)
+     * @var SecurityContext
+     */
+    protected $securityContext;
+
+    /**
      * @param ServerRequestInterface $request
      * @param RequestHandlerInterface $handler
      * @return ResponseInterface
@@ -67,6 +85,8 @@ final class Middleware implements MiddlewareInterface
             return new Response(200, ['Allow' => 'GET, POST, OPTIONS', 'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS']);
         }
 
+        $this->securityContext->setRequest(ActionRequest::fromHttpRequest($request));
+
         $endpoint = $this->objectManager->get($endpointClassName);
         assert($endpoint instanceof EndpointInterface);
 
@@ -76,19 +96,25 @@ final class Middleware implements MiddlewareInterface
             return new Response(500, ['Content-Type' => 'application/json'], '{error:"Failed retrieving schema"}');
         }
 
+        $config = ServerConfig::create()
+            ->setSchema($schema)
+            ->setFieldResolver($endpoint)
+            ->setDebugFlag(self::parseDebugOptions($this->settings['debug']))
+        ;
+
+        $server = new StandardServer($config);
+
         try {
-            $input = json_decode(file_get_contents('php://input'), true, 512, JSON_THROW_ON_ERROR);
-        } catch (\Exception $e) {
+            $request = $request->withParsedBody(json_decode($request->getBody()->getContents(), true, 512, JSON_THROW_ON_ERROR));
+        } catch (\JsonException $e) {
             return new Response(400, ['Content-Type' => 'application/json'], '{error:"Failed decoding request body"}');
         }
 
-        try {
-            $responseBody = \json_encode($endpoint->executeQuery($schema, $input)->toArray(self::parseDebugOptions($this->settings['debug'])),JSON_THROW_ON_ERROR);
-        } catch (\Exception $e) {
-            return new Response(500, ['Content-Type' => 'application/json'], '{error:"Failed encoding response body"}');
-        }
+        $bodyStream = $this->streamFactory->createStream();
+        $response = $server->processPsrRequest($request, new Response(), $bodyStream);
+        $bodyStream->rewind();
 
-        return new Response(200, ['Content-Type' => 'application/json'], $responseBody);
+        return $response;
     }
 
     /**
