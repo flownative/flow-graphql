@@ -162,7 +162,7 @@ final class Middleware implements MiddlewareInterface
      * @return array
      * @CompileStatic
      */
-    private static function getEndpointImplementations(ObjectManagerInterface $objectManager): array
+    protected static function getEndpointImplementations(ObjectManagerInterface $objectManager): array
     {
         $reflectionService = $objectManager->get(ReflectionService::class);
         return $reflectionService->getAllImplementationClassNamesForInterface(EndpointInterface::class);
