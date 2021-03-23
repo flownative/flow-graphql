@@ -70,7 +70,7 @@ final class Middleware implements MiddlewareInterface
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $requestPath = $request->getUri()->getPath();
-        foreach ($this->getEndpointImplementations($this->objectManager) as $endpointClassName) {
+        foreach (self::getEndpointImplementations($this->objectManager) as $endpointClassName) {
             if ($requestPath === $endpointClassName::getPath()) {
                 break;
             }
@@ -162,7 +162,7 @@ final class Middleware implements MiddlewareInterface
      * @return array
      * @CompileStatic
      */
-    private function getEndpointImplementations(ObjectManagerInterface $objectManager): array
+    private static function getEndpointImplementations(ObjectManagerInterface $objectManager): array
     {
         $reflectionService = $objectManager->get(ReflectionService::class);
         return $reflectionService->getAllImplementationClassNamesForInterface(EndpointInterface::class);
