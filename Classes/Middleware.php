@@ -93,7 +93,7 @@ final class Middleware implements MiddlewareInterface
         try {
             $schema = $this->getSchema($endpoint);
         } catch (SyntaxError | CacheException $e) {
-            return new Response(500, ['Content-Type' => 'application/json'], '{error:"Failed retrieving schema"}');
+            return new Response(500, ['Content-Type' => 'application/json'], sprintf('{error:"Failed processing schema from %s: %s"}', $endpoint->getSchemaUri(), $e->getMessage()));
         }
 
         $config = ServerConfig::create()
