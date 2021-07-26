@@ -134,7 +134,7 @@ final class Middleware implements MiddlewareInterface
                     }
                     $locations = trim($locations, ', ');
                 }
-                $this->logger->notice(sprintf('GraphQL response contained errors: %s%s', $error['message'], $locations ? " ($locations)" : ''));
+                $this->logger->notice(sprintf('GraphQL response contained errors: %s%s %s', $error['message'], $locations ? " ($locations)" : '', $error['debugMessage'] ?? ''));
             }
         }
 
