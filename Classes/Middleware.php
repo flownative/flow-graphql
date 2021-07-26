@@ -4,10 +4,12 @@ namespace Flownative\GraphQL;
 
 use GraphQL\Error\DebugFlag;
 use GraphQL\Error\SyntaxError;
+use GraphQL\Language\AST\DocumentNode;
 use GraphQL\Language\Parser;
 use GraphQL\Server\ServerConfig;
 use GraphQL\Server\StandardServer;
 use GraphQL\Type\Schema;
+use GraphQL\Utils\AST;
 use GraphQL\Utils\BuildSchema;
 use GuzzleHttp\Psr7\Response;
 use Neos\Cache\Exception as CacheException;
@@ -25,6 +27,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Psr\Log\LoggerInterface;
 
 
 /**
@@ -61,6 +64,12 @@ final class Middleware implements MiddlewareInterface
      * @var SecurityContext
      */
     protected $securityContext;
+
+    /**
+     * @Inject
+     * @var LoggerInterface
+     */
+    protected $logger;
 
     /**
      * @param ServerRequestInterface $request
@@ -111,9 +120,25 @@ final class Middleware implements MiddlewareInterface
         }
 
         $bodyStream = $this->streamFactory->createStream();
-        $response = $server->processPsrRequest($request, new Response(), $bodyStream);
-        $bodyStream->rewind();
 
+        $response = $server->processPsrRequest($request, new Response(), $bodyStream);
+
+        $bodyStream->rewind();
+        $graphqlResponseArray = json_decode($bodyStream->getContents(), true);
+        if (isset($graphqlResponseArray['errors'])) {
+            foreach ($graphqlResponseArray['errors'] as $error) {
+                $locations = '';
+                if (isset($error['locations'])) {
+                    foreach ($error['locations'] as $location) {
+                        $locations = "line {$location['line']} column {$location['column']}, ";
+                    }
+                    $locations = trim($locations, ', ');
+                }
+                $this->logger->notice(sprintf('GraphQL response contained errors: %s%s', $error['message'], $locations ? " ($locations)" : ''));
+            }
+        }
+
+        $bodyStream->rewind();
         return $response;
     }
 
@@ -145,12 +170,17 @@ final class Middleware implements MiddlewareInterface
         if ($this->settings['enableSchemaCache'] === true) {
             $cacheKey = sha1($schemaPathAndFilename);
             if ($this->schemaCache->has($cacheKey)) {
-                $documentNode = $this->schemaCache->get($cacheKey);
+                $documentNodeArray = $this->schemaCache->get($cacheKey);
+                if ($documentNodeArray) {
+                    $documentNode = AST::fromArray($documentNodeArray);
+                }
             } else {
                 $documentNode = Parser::parse(Files::getFileContents($schemaPathAndFilename));
-                $this->schemaCache->set($cacheKey, $documentNode);
+                $this->schemaCache->set($cacheKey, $documentNode->toArray(true));
             }
-        } else {
+        }
+
+        if (!isset($documentNode)) {
             $documentNode = Parser::parse(Files::getFileContents($schemaPathAndFilename));
         }
 
