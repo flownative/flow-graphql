@@ -3,9 +3,10 @@ declare(strict_types=1);
 namespace Flownative\GraphQL;
 
 use GraphQL\Error\DebugFlag;
+use GraphQL\Error\Error;
 use GraphQL\Error\SyntaxError;
-use GraphQL\Language\AST\DocumentNode;
 use GraphQL\Language\Parser;
+use GraphQL\Server\Helper;
 use GraphQL\Server\ServerConfig;
 use GraphQL\Server\StandardServer;
 use GraphQL\Type\Schema;
@@ -17,6 +18,8 @@ use Neos\Cache\Frontend\VariableFrontend;
 use Neos\Flow\Annotations\CompileStatic;
 use Neos\Flow\Annotations\Inject;
 use Neos\Flow\Annotations\InjectConfiguration;
+use Neos\Flow\Log\ThrowableStorageInterface;
+use Neos\Flow\Log\Utility\LogEnvironment;
 use Neos\Flow\Mvc\ActionRequest;
 use Neos\Flow\ObjectManagement\ObjectManagerInterface;
 use Neos\Flow\Reflection\ReflectionService;
@@ -72,6 +75,12 @@ final class Middleware implements MiddlewareInterface
     protected $logger;
 
     /**
+     * @Inject
+     * @var ThrowableStorageInterface
+     */
+    protected $throwableStorage;
+
+    /**
      * @param ServerRequestInterface $request
      * @param RequestHandlerInterface $handler
      * @return ResponseInterface
@@ -101,15 +110,14 @@ final class Middleware implements MiddlewareInterface
 
         try {
             $schema = $this->getSchema($endpoint);
-        } catch (SyntaxError | CacheException $e) {
+        } catch (SyntaxError|CacheException $e) {
             return new Response(500, ['Content-Type' => 'application/json'], sprintf('{error:"Failed processing schema from %s: %s"}', $endpoint->getSchemaUri(), $e->getMessage()));
         }
 
         $config = ServerConfig::create()
             ->setSchema($schema)
             ->setFieldResolver($endpoint)
-            ->setDebugFlag(self::parseDebugOptions($this->settings['debug']))
-        ;
+            ->setDebugFlag(self::parseDebugOptions($this->settings['debug']));
 
         $server = new StandardServer($config);
 
@@ -120,8 +128,22 @@ final class Middleware implements MiddlewareInterface
         }
 
         $bodyStream = $this->streamFactory->createStream();
+        $helper = new Helper();
 
-        $response = $server->processPsrRequest($request, new Response(), $bodyStream);
+        $executionResult = $server->executePsrRequest($request);
+        $executionResult->setErrorsHandler(
+            function (array $errors, callable $formatter) {
+                $error = reset($errors);
+                if ($error instanceof Error) {
+                    $previous = $error->getPrevious();
+                    if ($previous instanceof \Throwable) {
+                        $this->logger->error($this->throwableStorage->logThrowable($previous), LogEnvironment::fromMethodName(__METHOD__));
+                    }
+                }
+                return array_map($formatter, $errors);
+            }
+        );
+        $response = $helper->toPsrResponse($executionResult, new Response(), $bodyStream);
 
         $bodyStream->rewind();
         $graphqlResponseArray = json_decode($bodyStream->getContents(), true);
