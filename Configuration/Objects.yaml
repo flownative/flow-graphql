@@ -1,6 +1,6 @@
 Flownative\GraphQL\Middleware:
-  properties:
-    'schemaCache':
+  arguments:
+    1:
       object:
         factoryObjectName: Neos\Flow\Cache\CacheManager
         factoryMethodName: getCache

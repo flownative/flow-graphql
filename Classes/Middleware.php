@@ -13,11 +13,10 @@ use GraphQL\Type\Schema;
 use GraphQL\Utils\AST;
 use GraphQL\Utils\BuildSchema;
 use GuzzleHttp\Psr7\Response;
+use JsonException;
 use Neos\Cache\Exception as CacheException;
 use Neos\Cache\Frontend\VariableFrontend;
-use Neos\Flow\Annotations\CompileStatic;
-use Neos\Flow\Annotations\Inject;
-use Neos\Flow\Annotations\InjectConfiguration;
+use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Log\ThrowableStorageInterface;
 use Neos\Flow\Log\Utility\LogEnvironment;
 use Neos\Flow\Mvc\ActionRequest;
@@ -31,60 +30,26 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
-
+use Throwable;
 
 /**
  * An HTTP middleware which handles requests directed to GraphQL endpoints
  */
 final class Middleware implements MiddlewareInterface
 {
-    /**
-     * @InjectConfiguration
-     * @var array
-     */
+    #[Flow\InjectConfiguration]
     protected $settings;
 
-    /**
-     * @Inject
-     * @var VariableFrontend
-     */
-    protected $schemaCache;
+    public function __construct(
+        readonly private VariableFrontend $schemaCache,
+        readonly private ObjectManagerInterface $objectManager,
+        readonly private StreamFactory $streamFactory,
+        readonly private SecurityContext $securityContext,
+        readonly private LoggerInterface $logger,
+        readonly private ThrowableStorageInterface $throwableStorage
+    ) {
+    }
 
-    /**
-     * @Inject
-     * @var ObjectManagerInterface
-     */
-    protected $objectManager;
-
-    /**
-     * @Inject
-     * @var StreamFactory
-     */
-    protected $streamFactory;
-
-    /**
-     * @Inject(lazy=false)
-     * @var SecurityContext
-     */
-    protected $securityContext;
-
-    /**
-     * @Inject
-     * @var LoggerInterface
-     */
-    protected $logger;
-
-    /**
-     * @Inject
-     * @var ThrowableStorageInterface
-     */
-    protected $throwableStorage;
-
-    /**
-     * @param ServerRequestInterface $request
-     * @param RequestHandlerInterface $handler
-     * @return ResponseInterface
-     */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $requestPath = $request->getUri()->getPath();
@@ -123,7 +88,7 @@ final class Middleware implements MiddlewareInterface
 
         try {
             $request = $request->withParsedBody(json_decode($request->getBody()->getContents(), true, 512, JSON_THROW_ON_ERROR));
-        } catch (\JsonException $e) {
+        } catch (JsonException) {
             return new Response(400, ['Content-Type' => 'application/json'], '{error:"Failed decoding request body"}');
         }
 
@@ -136,7 +101,7 @@ final class Middleware implements MiddlewareInterface
                 $error = reset($errors);
                 if ($error instanceof Error) {
                     $previous = $error->getPrevious();
-                    if ($previous instanceof \Throwable) {
+                    if ($previous instanceof Throwable) {
                         $this->logger->error($this->throwableStorage->logThrowable($previous), LogEnvironment::fromMethodName(__METHOD__));
                     }
                 }
@@ -146,28 +111,29 @@ final class Middleware implements MiddlewareInterface
         $response = $helper->toPsrResponse($executionResult, new Response(), $bodyStream);
 
         $bodyStream->rewind();
-        $graphqlResponseArray = json_decode($bodyStream->getContents(), true);
-        if (isset($graphqlResponseArray['errors'])) {
-            foreach ($graphqlResponseArray['errors'] as $error) {
-                $locations = '';
-                if (isset($error['locations'])) {
-                    foreach ($error['locations'] as $location) {
-                        $locations = "line {$location['line']} column {$location['column']}, ";
+        try {
+            $graphqlResponseArray = json_decode($bodyStream->getContents(), true, 512, JSON_THROW_ON_ERROR);
+            if (isset($graphqlResponseArray['errors'])) {
+                foreach ($graphqlResponseArray['errors'] as $error) {
+                    $locations = '';
+                    if (isset($error['locations'])) {
+                        foreach ($error['locations'] as $location) {
+                            $locations = "line {$location['line']} column {$location['column']}, ";
+                        }
+                        $locations = trim($locations, ', ');
                     }
-                    $locations = trim($locations, ', ');
+                    $this->logger->notice(sprintf('GraphQL response contained errors: %s%s %s', $error['message'], $locations ? " ($locations)" : '', $error['debugMessage'] ?? ''), LogEnvironment::fromMethodName(__METHOD__));
                 }
-                $this->logger->notice(sprintf('GraphQL response contained errors: %s%s %s', $error['message'], $locations ? " ($locations)" : '', $error['debugMessage'] ?? ''));
             }
+
+        } catch (JsonException $e) {
+            $this->logger->notice(sprintf('Failed decoding GraphQL JSON response: %s', $e->getMessage()), LogEnvironment::fromMethodName(__METHOD__));
         }
 
         $bodyStream->rewind();
         return $response;
     }
 
-    /**
-     * @param array $options
-     * @return int
-     */
     private static function parseDebugOptions(array $options): int
     {
         $flag = DebugFlag::NONE;
@@ -181,8 +147,6 @@ final class Middleware implements MiddlewareInterface
     }
 
     /**
-     * @param EndpointInterface $endpoint
-     * @return Schema
      * @throws CacheException
      * @throws SyntaxError
      */
@@ -209,14 +173,9 @@ final class Middleware implements MiddlewareInterface
         return BuildSchema::build($documentNode, $endpoint->getTypeConfigDecorator());
     }
 
-    /**
-     * @param ObjectManagerInterface $objectManager
-     * @return array
-     * @CompileStatic
-     */
+    #[Flow\CompileStatic]
     protected static function getEndpointImplementations(ObjectManagerInterface $objectManager): array
     {
-        $reflectionService = $objectManager->get(ReflectionService::class);
-        return $reflectionService->getAllImplementationClassNamesForInterface(EndpointInterface::class);
+        return $objectManager->get(ReflectionService::class)->getAllImplementationClassNamesForInterface(EndpointInterface::class);
     }
 }

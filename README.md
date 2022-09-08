@@ -126,5 +126,5 @@ final class Endpoint implements EndpointInterface
 ## Credits and Support
 
 This library was developed by Robert Lemke / Flownative. Feel free to
-suggest new features, report bugs or provide bug fixes in our Github
+suggest new features, report bugs or provide bug fixes in our GitHub
 project.
