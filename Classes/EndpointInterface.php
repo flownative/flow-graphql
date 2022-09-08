@@ -13,10 +13,10 @@ interface EndpointInterface
      * @param ResolveInfo $info
      * @return mixed
      */
-    public function __invoke($objectValue, $args, $_, ResolveInfo $info);
+    public function __invoke($objectValue, $args, $_, ResolveInfo $info): mixed;
 
     /**
-     * Returns the path (ie. a part of the GraphQL API URL) which should
+     * Returns the path (i.e. a part of the GraphQL API URL) which should
      * be handled by this endpoint.
      *
      * The path must be unique across all endpoints of one system.

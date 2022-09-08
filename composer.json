@@ -4,10 +4,14 @@
     "description": "Flownative GraphQL",
     "license": "MIT",
     "require": {
-        "php": "7.4.* || 8.0.* || 8.1.*",
+        "php": "8.0.* || 8.1.* || 8.2.*",
         "ext-json": "*",
         "neos/flow": "^7.0 || ^8.0",
         "webonyx/graphql-php": "^14.0"
+    }
+    ,
+    "require-dev": {
+        "roave/security-advisories": "dev-latest"
     },
     "autoload": {
         "psr-4": {
