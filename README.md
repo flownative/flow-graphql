@@ -1,6 +1,5 @@
 [![MIT license](http://img.shields.io/badge/license-MIT-brightgreen.svg)](http://opensource.org/licenses/MIT)
 [![Packagist](https://img.shields.io/packagist/v/flownative/graphql.svg)](https://packagist.org/packages/flownative/graphql)
-![CI](https://github.com/flownative/flow-graphql/workflows/CI/badge.svg?branch=main)
 
 # GraphQL Library for Neos Flow
 
