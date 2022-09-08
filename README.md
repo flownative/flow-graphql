@@ -50,7 +50,8 @@ namespace Flownative\Example\GraphQL;
 use Flownative\GraphQL\EndpointInterface;
 use GraphQL\Executor\ExecutionResult;
 use GraphQL\GraphQL;
-use GraphQL\Type\Schema;use Neos\Eel\FlowQuery\OperationResolver;
+use GraphQL\Type\Schema;
+use Neos\Eel\FlowQuery\OperationResolver;
 
 final class Endpoint implements EndpointInterface
 {
